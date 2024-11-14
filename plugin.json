@@ -1,6 +1,6 @@
 {
-  "id": "acode.plugin",
-  "name": "Plugin",
+  "id": "acode.plugin.jdts",
+  "name": "JDTLS Java Language Server",
   "main": "dist/main.js",
   "version": "1.0.0",
   "readme": "readme.md",
@@ -9,8 +9,9 @@
   "minVersionCode" : 290,
   "price": 0,
   "author": {
-    "name": "",
-    "email": "",
-    "github": ""
+    "name": "Qiuby Zhukhi",
+    "email": "qzhukhi@gmail.com",
+    "url":"https://www.facebook.com/QiubyZhuk",
+    "github": "QiubyZ"
   }
 }
