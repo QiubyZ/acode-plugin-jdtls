@@ -1,12 +1,18 @@
-import plugin from '../plugin.json';
-let AppSettings = acode.require("settings")
+import plugin from "../plugin.json";
+let AppSettings = acode.require("settings");
 
 class AcodePlugin {
+  constructor() {
+    this.name_language_type = "java"
+    this.languageserver = "/data/data/com.termux/files/home/LANGUAGE-SERVER/jdtls/jdtls/bin/jdtls"
+    this.standart_args = []
+    this.initializeOptions = {
+      initializationOptions: {}
+    }
+  }
 
-  async init() {
-    // your plugin codes goes here
+  async init($page, cacheFile, cacheFileUrl) {
     let acodeLanguageClient = acode.require("acode-language-client");
-
     if (acodeLanguageClient) {
       await this.setupLanguageClient(acodeLanguageClient);
     } else {
@@ -17,34 +23,8 @@ class AcodePlugin {
         }
       });
     }
-
   }
-
-  get defaultSettings() {
-    return {
-      serverPath: "/data/data/com.termux/files/home/.local/share/nvim/mason/bin/jdtls",
-      args: [
-        "-configuration /data/data/com.termux/files/home/.cache/jdtls/config",
-        "-data /data/data/com.termux/files/home/.cache/jdtls/workspace"],
-    }
-  }
-  async setupLanguageClient(acodeLanguageClient) {
-    let JDTLSsocket = acodeLanguageClient.getSocketForCommand(
-      this.settings.serverPath,
-      this.settings.args,
-    );
-    let JDTLSClient = new acodeLanguageClient.LanguageClient({
-      type: "socket",
-      socket: JDTLSsocket,
-    });
-
-    acodeLanguageClient.registerService("java", JDTLSClient);
-
-    acode.registerFormatter(plugin.name, ["java"], () =>
-      acodeLanguageClient.format(),
-    );
-
-  }
+  
   get settings() {
     // UPDATE SETTING SAAT RESTART ACODE
     if (!window.acode) return this.defaultSettings;
@@ -56,6 +36,7 @@ class AcodePlugin {
     }
     return value;
   }
+  
   get settingsMenuLayout() {
     return {
       list: [
@@ -63,55 +44,107 @@ class AcodePlugin {
           index: 0,
           key: "serverPath",
           promptType: "text",
-          info: "Set the JDTLS executable file Path",
-          prompt: "Set the JDTLS executable file Path",
+          prompt: "Change the serverPath before running.",
           text: "JDTLS Executable File Path",
           value: this.settings.serverPath,
         },
         {
           index: 1,
-          key: "args",
+          key: "arguments",
           promptType: "text",
-          info: "JDTLS Argument",
-          prompt: "JDTLS Args",
+          info: "For multiple arguments, please use comma ','<br>Example: --stdio, -v, -vv",
+          prompt: "Argument Of Language Server",
           text: "JDTLS Argument",
-          value: this.settings.args.join(", ")
+          value: this.settings.arguments.join(", ")
         },
       ],
-      cb: (key, value) => {
 
+      cb: (key, value) => {
         switch (key) {
-          case 'args':
+          case 'arguments':
             value = value ? value.split(",").map(item => item.trim()) : [];
             break;
         }
         AppSettings.value[plugin.id][key] = value;
         AppSettings.update();
       },
-
     };
   }
+
+  get defaultSettings() {
+    return {
+      serverPath: this.languageserver,
+      arguments: this.standart_args,
+      languageClientConfig: this.initializeOptions
+    };
+  }
+
+  async setupLanguageClient(acodeLanguageClient) {
+    let socket = acodeLanguageClient.getSocketForCommand(
+      this.settings.serverPath,
+      this.settings.arguments,
+    );
+
+
+    let JavaClient = new acodeLanguageClient.LanguageClient({
+      type: "socket",
+      socket,
+      initializationOptions: this.settings.languageClientConfig.initializationOptions
+    });
+    acodeLanguageClient.registerService(this.name_language_type, JavaClient);
+
+
+    let handler = () => {
+      JavaClient.connection.onNotification("window/showMessage", ({ params }) => {
+        console.log("ShowMessage: " + params.message)
+      });
+      JavaClient.connection.onNotification("workspace/configuration", params => {
+        const deb = "Initilizing Progress " + this.languageserver
+        console.log(deb + `${params.message}`)
+
+      });
+      JavaClient.connection.onRequest("window/workDoneProgress/create", params => {
+        const deb = "Initializing WorkDone Progress " + this.languageserver
+        console.log(deb + `${params.message}`)
+
+      });
+    }
+    socket.addEventListener("open", () => {
+      if (JavaClient.isInitialized) handler();
+      else JavaClient.requestsQueue.push(() => handler());
+      console.log("OPEN CONNECTION")
+    });
+
+    acode.registerFormatter(plugin.name, [this.name_language_type], () =>
+      acodeLanguageClient.format(),
+    );
+
+  }
+
   async destroy() {
-    // Add your cleanup code here
     if (AppSettings.value[plugin.id]) {
       delete AppSettings.value[plugin.id];
       AppSettings.update();
     }
   }
-
 }
 
 if (window.acode) {
   const acodePlugin = new AcodePlugin();
-  acode.setPluginInit(plugin.id, async (baseUrl, $page, { cacheFileUrl, cacheFile }) => {
-    if (!baseUrl.endsWith('/')) {
-      baseUrl += '/';
-    }
-    acodePlugin.baseUrl = baseUrl;
-    await acodePlugin.init($page, cacheFile, cacheFileUrl);
-  }, acodePlugin.settingsMenuLayout);
+  acode.setPluginInit(
+    plugin.id,
+    async (baseUrl, $page, { cacheFileUrl, cacheFile }) => {
+      if (!baseUrl.endsWith("/")) {
+        baseUrl += "/";
+      }
+      acodePlugin.baseUrl = baseUrl;
+      await acodePlugin.init($page, cacheFile, cacheFileUrl);
+    },
+    acodePlugin.settingsMenuLayout,
+  );
 
   acode.setPluginUnmount(plugin.id, () => {
     acodePlugin.destroy();
   });
+
 }
