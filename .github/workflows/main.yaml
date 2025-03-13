@@ -1,0 +1,25 @@
+on:
+    push:
+        branches:
+            - main
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v4
+            - name: Build Script
+              run: |
+                  npm install
+                  npm run build-release
+            - name: Buat Rilis Baru
+              uses: softprops/action-gh-release@v1
+              with:
+                  tag_name: ${{ github.event.repository.name }}
+                  name: ${{ github.event.repository.name }}
+                  files: ./dist.zip
+                  draft: false
+                  prerelease: false
+                  generate_release_notes: true
+                  token: ${{ secrets.GITHUB_TOKEN }}
