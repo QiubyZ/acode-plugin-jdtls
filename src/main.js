@@ -9,6 +9,7 @@ class AcodePlugin {
         this.initializeOptions = {
             initializationOptions: {},
         };
+        window.applyEditToEditor = this.applyEditToEditor.bind(this);
     }
 
     async init($page, cacheFile, cacheFileUrl) {
@@ -18,9 +19,7 @@ class AcodePlugin {
         } else {
             window.addEventListener("plugin.install", ({ detail }) => {
                 if (detail.name === "acode-language-client") {
-                    acodeLanguageClient = acode.require(
-                        "acode-language-client",
-                    );
+                    acodeLanguageClient = acode.require("acode-language-client");
                     this.setupLanguageClient(acodeLanguageClient);
                 }
             });
@@ -64,9 +63,7 @@ class AcodePlugin {
             cb: (key, value) => {
                 switch (key) {
                     case "arguments":
-                        value = value
-                            ? value.split(",").map((item) => item.trim())
-                            : [];
+                        value = value ? value.split(",").map((item) => item.trim()) : [];
                         break;
                 }
                 AppSettings.value[plugin.id][key] = value;
@@ -92,77 +89,81 @@ class AcodePlugin {
         let JavaClient = new acodeLanguageClient.LanguageClient({
             type: "socket",
             socket,
-            initializationOptions:
-                this.settings.languageClientConfig.initializationOptions,
+            initializationOptions: this.settings.languageClientConfig.initializationOptions,
         });
-        acodeLanguageClient.registerService(
-            this.name_language_type,
-            JavaClient,
-        );
-
-        // let handler = () => {
-        //     JavaClient.connection.onNotification(
-        //         "window/showMessage",
-        //         ({ params }) => {
-        //             console.log("ShowMessage: " + params.message);
-        //         },
-        //     );
-        //     JavaClient.connection.onNotification(
-        //         "workspace/configuration",
-        //         (params) => {
-        //             const deb = "Initilizing Progress " + this.languageserver;
-        //             console.log(deb + `${params.message}`);
-        //         },
-        //     );
-        //     JavaClient.connection.onRequest(
-        //         "window/workDoneProgress/create",
-        //         (params) => {
-        //             const deb =
-        //                 "Initializing WorkDone Progress " + this.languageserver;
-        //             console.log(deb + `${params.message}`);
-        //         },
-        //     );
-        // };
-        // socket.addEventListener("open", () => {
-        //     if (JavaClient.isInitialized) handler();
-        //     else JavaClient.requestsQueue.push(() => handler());
-        //     console.log("OPEN CONNECTION");
+        // JavaClient.setOptions({
+        //     fontSize: "14px",
+        //     fontFamily: "Fira Code, monospace",
+        //     tabSize: 4,
+        //     useSoftTabs: true,
+        //     newLineMode: "unix",
+        //     wrap: true,
+        //     indentedSoftWrap: true,
+        //     readOnly: false,
+        //     highlightActiveLine: true,
+        //     showInvisibles: true,
+        //     showPrintMargin: true,
+        //     printMarginColumn: 80,
+        //     enableBasicAutocompletion: true,
+        //     enableLiveAutocompletion: true,
+        //     enableSnippets: false,
+        //     behavioursEnabled: true,
+        //     enableFoldWidgets: true,
+        //     scrollSpeed: 2,
+        //     hScrollBarAlwaysVisible: false,
+        //     vScrollBarAlwaysVisible: false,
+        //     tooltipFollowsMouse: true,
+        //     keyboardHandler: "ace/keyboard/vim",
+        //     selectionStyle: "text",
+        //     animatedScroll: true,
+        //     useWorker: true,
+        //     placeholder: "Type your code here...",
         // });
 
-        acode.registerFormatter(plugin.id, ["java"], async () => {
+        acodeLanguageClient.registerService(this.name_language_type, JavaClient);
+
+        let handler = () => {
+            JavaClient.connection.onNotification("language/status", (params) => {
+                window.toast(params.message, 1000);
+            });
+        };
+        socket.addEventListener("open", () => {
+            if (JavaClient.isInitialized) handler();
+            else JavaClient.requestsQueue.push(() => handler());
+            console.log("OPEN CONNECTION");
+        });
+
+        acode.registerFormatter(plugin.id, [this.name_language_type], async () => {
             const test = () => {
                 const javaCode = editorManager.editor.session.getValue();
 
                 return import("prettier/standalone")
                     .then((prettier) => {
-                        return import("prettier-plugin-java").then(
-                            (parserJava) => {
-                                console.log(
-                                    "Prettier and Java plugin loaded successfully.",
-                                );
-                                return prettier.format(javaCode, {
-                                    parser: "java",
-                                    plugins: [parserJava.default],
-                                    tabWidth: 4,
-                                    useTabs: false,
-                                    printWidth: 120,
-                                });
-                            },
-                        );
+                        return import("prettier-plugin-java").then((parserJava) => {
+                            console.log("Prettier and Java plugin loaded successfully.");
+                            window.toast("Prettier and Java plugin loaded successfully.", 1000);
+                            return prettier.format(javaCode, {
+                                parser: this.name_language_type,
+                                plugins: [parserJava.default],
+                                tabWidth: 4,
+                                useTabs: false,
+                                printWidth: 120,
+                            });
+                        });
                     })
                     .then((formatted) => {
-                        console.log("Formatted Code:", formatted);
                         return formatted;
                     })
                     .catch((error) => {
-                        console.error(
-                            "Error formatting Java code:",
-                            error.message || error,
-                        );
+                        console.error("Error formatting Java code:", error.message || error);
 
                         if (error.name === "SyntaxError") {
                             console.warn(
                                 "The provided code contains syntax errors and cannot be formatted.",
+                            );
+                            window.toast(
+                                "The provided code contains syntax errors and cannot be formatted.",
+                                1000,
                             );
                         }
                         return editorManager.editor.session.getValue();
@@ -174,12 +175,40 @@ class AcodePlugin {
                     editorManager.editor.session.setValue(formattedCode);
                 })
                 .catch((error) => {
-                    console.error(
-                        "Error setting formatted code:",
-                        error.message || error,
-                    );
+                    console.error("Error setting formatted code:", error.message || error);
+                    window.toast(`Error setting formatted code: ${error.message}`, 1000);
                 });
         });
+        const originalConsoleLog = console.log;
+        console.log = function (...args) {
+            originalConsoleLog.apply(console, args);
+            if (args[0] === "Resolved:") {
+                const resolvedResult = args[1]; // Hasil resolved
+                //console.log("Test Organize Imports:", resolvedResult);
+                if (resolvedResult && resolvedResult.edit) {
+                    window.applyEditToEditor(resolvedResult.edit);
+                }
+            }
+        };
+    }
+    applyEditToEditor(edit) {
+        const session = editorManager.editor.getSession();
+        for (const [uri, changes] of Object.entries(edit.changes)) {
+            changes.forEach((change) => {
+                const { range, newText } = change;
+
+                const startPos = { row: range.start.line, column: range.start.character };
+                const endPos = { row: range.end.line, column: range.end.character };
+
+                session.replace(
+                    {
+                        start: startPos,
+                        end: endPos,
+                    },
+                    newText,
+                );
+            });
+        }
     }
 
     async destroy() {
