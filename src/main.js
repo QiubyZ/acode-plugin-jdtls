@@ -90,7 +90,7 @@ class AcodePlugin {
 			socket,
 			initializationOptions: this.settings.languageClientConfig.initializationOptions,
 		});
-		
+
 		// JavaClient.setOptions({
 		//     fontSize: "14px",
 		//     fontFamily: "Fira Code, monospace",
@@ -178,38 +178,7 @@ class AcodePlugin {
 					window.toast(`Error setting formatted code: ${error.message}`, 1000);
 				});
 		});
-		this.resolveEditor();
-	}
-	resolveEditor() {
-		const originalConsoleLog = console.log;
-		console.log = (...args) => {
-			originalConsoleLog.apply(console, args);
-			if (args[0] === "Resolved:") {
-				const resolvedResult = args[1]; // Hasil resolved
-				console.log("Test Organize Imports:", resolvedResult);
-				if (resolvedResult && resolvedResult.edit) {
-					this.applyText(resolvedResult.edit);
-				}
-			}
-		};
-	}
-	
-	applyText(edit) {
-		const session = editorManager.editor.getSession();
-		for (const [uri, changes] of Object.entries(edit.changes)) {
-			changes.forEach((change) => {
-				const { range, newText } = change;
-				const startPos = { row: range.start.line, column: range.start.character };
-				const endPos = { row: range.end.line, column: range.end.character };
-				session.replace(
-					{
-						start: startPos,
-						end: endPos,
-					},
-					newText,
-				);
-			});
-		}
+		
 	}
 
 	async destroy() {
